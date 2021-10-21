@@ -1,0 +1,184 @@
+function main() {
+    const url__ = "";
+    var bgt = Math.random() * 300 + 690;
+    bgt = Math.round(bgt);
+    bgt = bgt / 100;
+    // bgt = 2;
+    const opts = {
+        createOneAd: true,
+        cOpts: {
+            name: "Display - 1",
+            budget: bgt,
+            lang: "ru", //it;es;pt
+            type: "Display",
+            strategy: "Maximize conversions",
+            status: "Enabled",
+        },
+        gOpts: {
+            name: "AdGroup - 1",
+            cpc: "1",
+        },
+        aOpts: {
+            h1: "Срочная выплата компенсаций",
+            h2: "Компенсации всем лицам РФ",
+            h3: "Компенсации РФ",
+            d1: "Оформить компенсацию РФ",
+            d2: "А вы уже получили компенсацию?",
+            url: url__,
+        },
+        lOpt: {
+            inc: [2643],
+            exc: [],
+        },
+    };
+
+    _updateItalyAd(opts);
+
+    //showAllPlacementExclusions(opts.cOpts.name);
+}
+
+function _updateItalyAd(opts) {
+    try {
+        var campResult = _createDisplayCampaigns(opts.cOpts);
+        if (!campResult.ok) {
+            Logger.log("Problem! createDisplayCampaigns");
+            return 0;
+        }
+        Utilities.sleep(5000);
+        if (opts.createOneAd) {
+            var adGroupResult = _addGroupToDisplay(opts.cOpts.name, opts.gOpts);
+            if (!adGroupResult.ok) {
+                Logger.log("Problem! addGroupToDisplay");
+                return 0;
+            }
+            Utilities.sleep(5000);
+            var adReustlt = _addExpandedTextAd(opts.cOpts.name, opts.gOpts.name, opts.aOpts);
+            if (!adReustlt.ok) {
+                Logger.log("Problem! addExpandedTextAd");
+                return 0;
+            }
+            Utilities.sleep(1000);
+        }
+        _addLocations(opts.cOpts.name, opts.lOpt.inc);
+
+        Utilities.sleep(1000);
+        _remLocations(opts.cOpts.name, opts.lOpt.exc);
+
+        Logger.log("All was done! ! !");
+    } catch (error) {
+        Logger.log(error);
+    }
+}
+
+function _addLocations(campaignName, arrayLoc) {
+    var campaignIterator = AdsApp.campaigns()
+        .withCondition('Name = "' + campaignName + '"')
+        .get();
+    if (campaignIterator.hasNext()) {
+        var campaign = campaignIterator.next();
+        // Target France (location id = 2250) and set a bid modifier of +50%. See
+        // https://developers.google.com/adwords/api/docs/appendix/geotargeting
+        // for details.
+        for (var i = 0; i < arrayLoc.length; i++) {
+            const loc = arrayLoc[i];
+            campaign.addLocation(loc, 1);
+        }
+    }
+}
+
+function _remLocations(campaignName, arrayLoc) {
+    var campaignIterator = AdsApp.campaigns()
+        .withCondition('Name = "' + campaignName + '"')
+        .get();
+    if (campaignIterator.hasNext()) {
+        var campaign = campaignIterator.next();
+        // Target France (location id = 2250) and set a bid modifier of +50%. See
+        // https://developers.google.com/adwords/api/docs/appendix/geotargeting
+        // for details.
+        for (var i = 0; i < arrayLoc.length; i++) {
+            const loc = arrayLoc[i];
+            campaign.excludeLocation(loc, 1);
+        }
+    }
+}
+
+function _createDisplayCampaigns(cOpts) {
+    try {
+        var columns = ["Campaign", "Budget", "Networks", "Language", "Bid Strategy type", "Campaign type", "Campaign Status"];
+
+        var upload = AdWordsApp.bulkUploads().newCsvUpload(columns, {
+            moneyInMicros: false,
+        });
+        const cName = cOpts.name;
+        for (var i = 0; i < 50; i++) {
+            var index = i + 2;
+            var cName2 = cName + " #" + index;
+
+            var bgt = Math.random() * 100 + 10;
+            bgt = Math.round(bgt);
+            bgt = bgt / 100;
+
+            upload.append({
+                Campaign: cName2 || "Display - 1.",
+                Budget: cOpts.budget + bgt,
+                "Budget type": "Daily",
+                Networks: "Display Network",
+                Language: cOpts.lang,
+                "Campaign type": cOpts.type,
+                "Ad rotation": "Optimize for clicks",
+                "Bid Strategy type": cOpts.strategy,
+                "Campaign Status": i == 0 ? cOpts.status : "Paused",
+            });
+        }
+        // Use upload.apply() to make changes without previewing.
+        upload.apply();
+        return { ok: true };
+    } catch (e) {
+        Logger.log(e);
+        return { ok: false };
+    }
+    return { ok: false };
+}
+
+function _addGroupToDisplay(campaignName, gOpts) {
+    //Logger.log(campaignName, gOpts);
+    var campaignIterator = AdsApp.campaigns().get();
+    if (campaignIterator.hasNext()) {
+        var campaign = campaignIterator.next();
+        var adGroupOperation = campaign.newAdGroupBuilder().withName(gOpts.name).withCpc(gOpts.cpc).build();
+        var adGroup = adGroupOperation.getResult();
+        return { adGroup: adGroup, campaign: campaign, ok: true };
+    }
+    return { ok: false };
+}
+
+function _addExpandedTextAd(campaignName, adGroupName, aOpts) {
+    try {
+        var adGroupIterator = AdsApp.adGroups().get();
+
+        if (adGroupIterator.hasNext()) {
+            var adGroup = adGroupIterator.next();
+            var adOperation = adGroup
+                .newAd()
+                .expandedTextAdBuilder()
+                .withHeadlinePart1(aOpts.h1)
+                .withHeadlinePart2(aOpts.h2)
+                .withHeadlinePart3(aOpts.h3)
+                .withDescription1(aOpts.d1)
+                .withDescription2(aOpts.d2)
+                .withFinalUrl(aOpts.url)
+                .build();
+
+            var ad = adOperation.getResult();
+            return {
+                ok: true,
+                adGroup: adGroup,
+                ad: ad,
+            };
+        }
+    } catch (e) {
+        Logger.log(e);
+        return { ok: false };
+    }
+    return { ok: false };
+}
